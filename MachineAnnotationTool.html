@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Image Annotation Tool</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root{
+    --mac-blue:#003DA5;
+    --mac-blue-dark:#002B75;
+    --pad:72px;
+    --fs-scale:1;
+    --anchor-opacity:1;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", Arial, sans-serif; background: #f0f2f5; padding: 12px; }
+  .toolbar { background: #fff; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.08); }
+  .toolbar button, .toolbar label { padding: 7px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .btn-primary { background: var(--mac-blue); color: #fff; }
+  .btn-success { background: #52c41a; color: #fff; }
+  .btn-warn { background: #faad14; color: #fff; }
+  .btn-danger { background: #ff4d4f; color: #fff; }
+  .btn-default { background: #f0f0f0; color: #333; }
+  .hint { color: #666; font-size: 12px; margin-left: auto; }
+  .dpi-badge { background:#e6f0ff; color:var(--mac-blue); font-size:12px; padding:4px 8px; border-radius:6px; }
+
+  .layout { display: flex; gap: 12px; align-items: flex-start; width: 100%; }
+  .canvas-area { flex: 0 0 66.6667%; max-width: 66.6667%; min-width: 0; }
+  .panel { flex: 0 0 33.3333%; max-width: 33.3333%; background: #fff; border-radius: 8px; padding: 12px; box-shadow: 0 2px 6px rgba(0,0,0,.08); max-height: calc(100vh - 100px); overflow-y: auto; }
+  .panel-head { display:flex; align-items:center; justify-content:space-between; border-bottom: 2px solid var(--mac-blue); padding-bottom: 8px; margin-bottom: 10px; flex-wrap: wrap; gap:6px; }
+  .panel-head h3 { font-size: 14px; color: var(--mac-blue); }
+  .fs-ctrl { display:flex; align-items:center; gap:6px; }
+  .fs-ctrl label { font-size:11px; color:#666; white-space:nowrap; }
+  .fs-ctrl input[type=range]{ width:90px; accent-color: var(--mac-blue); }
+  .fs-ctrl .fs-val { font-size:12px; font-weight:bold; color:var(--mac-blue); min-width:40px; text-align:right; }
+
+  .settings { display:flex; gap:10px; margin-bottom:12px; }
+  .set-box { flex:1; border:1px solid #e0e0e0; border-radius:6px; padding:8px; background:#fafbff; }
+  .set-box .set-title { font-size:12px; font-weight:bold; color:var(--mac-blue); margin-bottom:6px; border-bottom:1px dashed #cdd8ee; padding-bottom:4px; display:flex; justify-content:space-between; align-items:center; }
+  .set-box .set-title button { font-size:10px; padding:2px 6px; border:1px solid var(--mac-blue); background:#fff; color:var(--mac-blue); border-radius:4px; cursor:pointer; }
+  .set-box .set-title button:hover { background:var(--mac-blue); color:#fff; }
+  .set-box .opt { display:flex; align-items:center; gap:5px; font-size:12px; padding:3px 0; color:#555; cursor:pointer; }
+  .set-box .opt input[type=radio]{ accent-color: var(--mac-blue); margin:0; }
+  .set-box .opt:has(input:checked){ color:var(--mac-blue); font-weight:bold; }
+  .opacity-ctrl { display:flex; align-items:center; gap:4px; margin:4px 0 0 20px; font-size:11px; color:#888; }
+  .opacity-ctrl input[type=range]{ width:70px; accent-color:#ff4d4f; }
+  .opacity-ctrl .op-val{ font-weight:bold; color:#ff4d4f; min-width:34px; text-align:right; }
+  .style-panel { margin-top:12px; }
+  .style-grid { display:grid; grid-template-columns:auto 42px 1fr 44px; gap:6px 8px; align-items:center; font-size:12px; color:#555; }
+  .style-grid input[type=color] { width:36px; height:28px; border:1px solid #d0d0d0; border-radius:4px; padding:2px; background:#fff; cursor:pointer; }
+  .style-grid input[type=range] { width:100%; accent-color:var(--mac-blue); }
+  .style-grid .style-val { font-size:11px; color:#666; text-align:right; }
+
+  .panel .empty { color: #bbb; font-size: 12px; text-align: center; padding: 20px 0; }
+  .item { border: 1px solid #e0e0e0; border-radius: 6px; padding: 8px; margin-bottom: 8px; background: #fafbff; }
+  .item-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .item-head .badge { background: var(--mac-blue); color: #fff; font-weight: bold; padding: 2px 8px; border-radius: 10px; font-size: 12px; min-width: 30px; text-align: center; }
+  .item-head input.title-in { flex: 1; min-width: 0; border: 1px solid #d0d0d0; border-radius: 4px; padding: 4px 6px; font-size: 13px; font-family: inherit; font-weight: bold; }
+  .item-head .arr { width: 24px; height: 22px; border: 1px solid #d0d0d0; background: #fff; border-radius: 4px; cursor: pointer; font-size: 11px; padding: 0; }
+  .item-head .arr:hover { background: var(--mac-blue); color: #fff; border-color: var(--mac-blue); }
+  .item-head .arr:disabled { opacity: 0.3; cursor: not-allowed; }
+  .item-head .del-btn { width: 24px; height: 22px; border: 1px solid #ffccc7; background: #fff; color: #ff4d4f; border-radius: 4px; cursor: pointer; font-size: 12px; padding: 0; }
+  .item-head .del-btn:hover { background: #ff4d4f; color: #fff; }
+  .item textarea.desc-in { width: 100%; min-height: 44px; border: 1px solid #d0d0d0; border-radius: 4px; padding: 4px 6px; font-size: 12px; font-family: inherit; resize: vertical; }
+
+  #stage { position: relative; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,.08); display: block; width: 100%; padding: var(--pad) 0; }
+  .padZone { position: absolute; left:0; right:0; height: var(--pad); background: repeating-linear-gradient(45deg,#fafafa,#fafafa 8px,#f0f0f0 8px,#f0f0f0 16px); pointer-events:none; display:flex; align-items:center; justify-content:center; color:#bbb; font-size:12px; }
+  .padZone.top { top:0; }
+  .padZone.bot { bottom:0; }
+
+  #imgWrap { position: relative; display:block; }
+  #baseImg { display: block; width: 100%; user-select: none; -webkit-user-drag: none; }
+  #svgLayer { position: absolute; top: 0; left: 0; pointer-events: none; }
+
+  .anchor { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; background: #ff4d4f; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; cursor: move; box-shadow: 0 0 0 3px rgba(255,77,79,.3); z-index: 10; font-family: inherit; opacity: var(--anchor-opacity); }
+  .anchor.dot-only { width: 10px; height: 10px; margin: -5px 0 0 -5px; font-size:0; box-shadow: 0 0 0 2px rgba(255,255,255,.9); opacity: var(--anchor-opacity); }
+
+  .note {
+    position: absolute;
+    background: var(--mac-blue);
+    border: 1.5px solid var(--mac-blue);
+    border-radius: 4px;
+    padding: 4px 8px;
+    color: #fff;
+    cursor: move;
+    z-index: 20;
+    box-shadow: 2px 2px 0 var(--mac-blue-dark), 3px 3px 4px rgba(0,0,0,.15);
+    font-family: inherit;
+    display: inline-block;
+    width: max-content;
+    max-width: 320px;
+  }
+  .note.selected { outline: 2px solid #faad14; outline-offset: 2px; }
+  .note .line1 { font-weight: bold; font-size: calc(10pt * var(--fs-scale)); color: #fff; white-space: nowrap; line-height: 1.25; outline: none; }
+  .note .line1 .num { display:inline-block; margin-right: 4px; letter-spacing: 0.7px; }
+  .note .desc { font-weight: normal; font-size: calc(8pt * var(--fs-scale)); color: #eaf1ff; line-height: 1.35; margin-top: 2px; outline: none; white-space: normal; word-break: break-word; max-width: calc(120px * var(--fs-scale)); }
+  [contenteditable]:empty:before { content: attr(placeholder); color: rgba(255,255,255,.5); font-weight: normal; }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <label class="btn-primary" style="cursor:pointer;">
+      📁 Load Base Image <input type="file" id="fileInput" accept="image/*" hidden>
+    </label>
+    <button class="btn-success" id="addMode">➕ Add Annotation</button>
+    <button class="btn-warn" id="exportJson">💾 Export JSON</button>
+    <label class="btn-default" style="cursor:pointer;">
+      📂 Load JSON <input type="file" id="jsonInput" accept=".json" hidden>
+    </label>
+    <button class="btn-primary" id="exportPng">🖼️ Export PNG (300dpi)</button>
+    <button class="btn-danger" id="clearAll">🗑️ Clear All</button>
+    <span class="dpi-badge" id="dpiInfo">DPI: —</span>
+    <span class="hint" id="hint">Please load a base image first</span>
+  </div>
+
+  <div class="layout">
+    <div class="canvas-area">
+      <div id="stage">
+        <div class="padZone top">↑ Top margin area (annotations for the upper half of the image)</div>
+        <div id="imgWrap">
+          <img id="baseImg" alt="Please load a base image">
+        </div>
+        <div class="padZone bot">↓ Bottom margin area (annotations for the lower half of the image)</div>
+        <svg id="svgLayer"></svg>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>📋 Annotation List</h3>
+        <div class="fs-ctrl">
+          <label>Font</label>
+          <input type="range" id="fsRange" min="25" max="200" step="5" value="100">
+          <span class="fs-val" id="fsVal">100%</span>
+        </div>
+      </div>
+
+      <div class="settings">
+        <div class="set-box">
+          <div class="set-title">
+            <span>Leader Line</span>
+            <button id="relayoutBtn" title="Auto re-layout all annotations">↻ Re-layout</button>
+          </div>
+          <label class="opt"><input type="radio" name="lineMode" value="30deg"><span>📐 30-degree line</span></label>
+          <label class="opt"><input type="radio" name="lineMode" value="hv"><span>📏 Horizontal/Vertical</span></label>
+          <label class="opt"><input type="radio" name="lineMode" value="direct" checked><span>➖ Direct line</span></label>
+        </div>
+        <div class="set-box">
+          <div class="set-title"><span>Point Marker</span></div>
+          <label class="opt"><input type="radio" name="ptMode" value="numbered" checked><span>🔴 Numbered marker</span></label>
+          <div class="opacity-ctrl">
+            <span>Opacity</span>
+            <input type="range" id="opRange" min="0" max="100" step="5" value="100">
+            <span class="op-val" id="opVal">100%</span>
+          </div>
+          <label class="opt"><input type="radio" name="ptMode" value="dot"><span>🔴 Red dot (hide number)</span></label>
+        </div>
+      </div>
+
+      <div id="itemList"></div>
+      <div class="set-box style-panel">
+        <div class="set-title"><span>Annotation Box Style</span></div>
+        <div class="style-grid">
+          <span>Box color</span>
+          <input type="color" id="noteColor" value="#003DA5" title="Annotation box background color">
+          <input type="range" id="noteOpacity" min="0" max="100" step="5" value="100" title="Annotation box opacity">
+          <span class="style-val" id="noteOpacityVal">100%</span>
+
+          <span>Line color</span>
+          <input type="color" id="lineColor" value="#003DA5" title="Leader line color">
+          <input type="range" id="lineOpacity" min="0" max="100" step="5" value="100" title="Leader line opacity">
+          <span class="style-val" id="lineOpacityVal">100%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const stage    = document.getElementById('stage');
+const imgWrap  = document.getElementById('imgWrap');
+const img      = document.getElementById('baseImg');
+const svg      = document.getElementById('svgLayer');
+const hint     = document.getElementById('hint');
+const itemList = document.getElementById('itemList');
+const dpiInfo  = document.getElementById('dpiInfo');
+const fsRange  = document.getElementById('fsRange');
+const fsVal    = document.getElementById('fsVal');
+const opRange  = document.getElementById('opRange');
+const opVal    = document.getElementById('opVal');
+const noteColorInput = document.getElementById('noteColor');
+const noteOpacityInput = document.getElementById('noteOpacity');
+const noteOpacityVal = document.getElementById('noteOpacityVal');
+const lineColorInput = document.getElementById('lineColor');
+const lineOpacityInput = document.getElementById('lineOpacity');
+const lineOpacityVal = document.getElementById('lineOpacityVal');
+const PAD      = 72;
+const TARGET_DPI = 300;
+const SCREEN_DPI = 96;
+const SVGNS = 'http://www.w3.org/2000/svg';
+
+let annotations = [];
+let addMode = false;
+let nextId = 1;
+let naturalW = 0, naturalH = 0;
+let lineMode = 'direct';
+let ptMode = 'numbered';
+let noteColor = '#003DA5';
+let noteOpacity = 1;
+let lineColor = '#003DA5';
+let lineOpacity = 1;
+
+const pad2 = n => String(n).padStart(2, '0');
+// 0.5-character spacing based on font scale: 1 character ≈ 10pt ≈ 13.3px, 0.5 character ≈ 6.7px
+const gapPx = () => 6.7 * parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--fs-scale') || 1);
+const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
+const hexToRgba = (hex, alpha) => {
+  const v = hex.replace('#','');
+  const n = parseInt(v.length === 3 ? v.split('').map(c => c + c).join('') : v, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+};
+
+document.querySelectorAll('input[name="lineMode"]').forEach(r => {
+  r.addEventListener('change', e => { lineMode = e.target.value; redrawLines(); });
+});
+document.querySelectorAll('input[name="ptMode"]').forEach(r => {
+  r.addEventListener('change', e => { ptMode = e.target.value; applyPtMode(); });
+});
+opRange.addEventListener('input', () => {
+  opVal.textContent = opRange.value + '%';
+  document.documentElement.style.setProperty('--anchor-opacity', (+opRange.value/100).toString());
+});
+
+function applyNoteStyle(note){
+  note.style.backgroundColor = hexToRgba(noteColor, noteOpacity);
+  note.style.borderColor = hexToRgba(noteColor, Math.min(1, noteOpacity + 0.15));
+  note.style.boxShadow = `2px 2px 0 ${hexToRgba(noteColor, Math.min(1, noteOpacity + 0.1))}, 3px 3px 4px rgba(0,0,0,.15)`;
+}
+function applyStyleControls(){
+  noteColor = noteColorInput.value;
+  noteOpacity = +noteOpacityInput.value / 100;
+  lineColor = lineColorInput.value;
+  lineOpacity = +lineOpacityInput.value / 100;
+  noteOpacityVal.textContent = noteOpacityInput.value + '%';
+  lineOpacityVal.textContent = lineOpacityInput.value + '%';
+  document.querySelectorAll('.note').forEach(applyNoteStyle);
+  redrawLines();
+}
+[noteColorInput, noteOpacityInput, lineColorInput, lineOpacityInput].forEach(el => {
+  el.addEventListener('input', applyStyleControls);
+});
+document.getElementById('relayoutBtn').onclick = () => {
+  // Clear manual layout flags for all annotations and re-run auto layout
+  annotations.forEach(a => a.manual = false);
+  renderAll();
+};
+
+function applyPtMode(){
+  document.querySelectorAll('.anchor').forEach(a => {
+    if (ptMode === 'dot') a.classList.add('dot-only');
+    else a.classList.remove('dot-only');
+  });
+}
+
+fsRange.addEventListener('input', () => {
+  const pct = +fsRange.value;
+  fsVal.textContent = pct + '%';
+  document.documentElement.style.setProperty('--fs-scale', (pct/100).toString());
+  // After font size changes, box width changes; re-layout auto-positioned boxes only
+  autoLayout();
+  redrawLines();
+});
+
+document.getElementById('fileInput').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    img.src = ev.target.result;
+    img.onload = () => {
+      naturalW = img.naturalWidth; naturalH = img.naturalHeight;
+      resizeSvg(); updateDpiInfo();
+      hint.textContent = 'Click “Add Annotation”, then click the position to annotate on the image';
+    };
+  };
+  r.readAsDataURL(f);
+};
+
+function updateDpiInfo(){
+  const inW = (naturalW/TARGET_DPI).toFixed(2), inH = (naturalH/TARGET_DPI).toFixed(2);
+  const mmW = (naturalW/TARGET_DPI*25.4).toFixed(1), mmH = (naturalH/TARGET_DPI*25.4).toFixed(1);
+  const whRatio = (naturalW / naturalH).toFixed(1);
+  dpiInfo.textContent = `${naturalW}×${naturalH}px | 300dpi ≈ ${inW}"×${inH}"(${mmW} mm x ${mmH} mm) | Aspect ratio = ${whRatio}:1.0`;
+}
+
+function resizeSvg(){
+  svg.setAttribute('width', stage.clientWidth);
+  svg.setAttribute('height', stage.clientHeight);
+  svg.style.width = stage.clientWidth + 'px';
+  svg.style.height = stage.clientHeight + 'px';
+}
+
+document.getElementById('addMode').onclick = () => {
+  if (!img.src) return alert('Please load a base image first');
+  addMode = !addMode;
+  stage.style.cursor = addMode ? 'crosshair' : 'default';
+  hint.textContent = addMode ? 'Click the position to annotate on the image' : '';
+};
+
+imgWrap.addEventListener('click', e => {
+  if (!addMode || e.target !== img) return;
+  const iRect = img.getBoundingClientRect();
+  const ax = e.clientX - iRect.left;
+  const ay = e.clientY - iRect.top;
+  // Determine whether the point is in the upper or lower half of the image, then place the box in the top or bottom margin
+  const zone = (ay < iRect.height / 2) ? 'top' : 'bot';
+  const ann = { id: nextId++, ax, ay, nx:ax, ny:0, zone, manual:false, title:'Title', desc:'Description text' };
+  annotations.push(ann);
+  renderAll();
+  addMode = false;
+  stage.style.cursor = 'default';
+  hint.textContent = '';
+});
+
+function renderAll(){
+  document.querySelectorAll('.anchor,.note').forEach(el => el.remove());
+  annotations.forEach((ann, i) => { ann.num = i + 1; renderAnn(ann); });
+  renderPanel();
+  applyPtMode();
+  autoLayout();       // Auto-layout by preferred annotation box position and avoid overlaps
+  redrawLines();
+}
+
+// Core: auto layout
+// Top-margin boxes align near the top; bottom-margin boxes align near the top of the bottom margin. Within each zone, sort by preferred position and place left to right without overlap.
+function autoLayout(){
+  const stageW = stage.clientWidth;
+  const gap = gapPx();
+  const minX = 6;
+  const maxRight = stageW - 6;
+  ['top','bot'].forEach(zone => {
+    const list = annotations
+      .filter(a => a.zone === zone)
+      .map(ann => {
+        const note = document.querySelector(`.note[data-id="${ann.id}"]`);
+        if (!note) return null;
+        const w = note.offsetWidth;
+        const preferred = ann.manual ? ann.nx : (ann.ax - w / 2);
+        return { ann, note, w, preferred };
+      })
+      .filter(Boolean)
+      .sort((a,b) => a.preferred - b.preferred || a.ann.num - b.ann.num);
+    // Y alignment baseline: top zone near the top edge; bottom zone near the top edge of the bottom margin
+    let baseY;
+    if (zone === 'top') baseY = 8;                          // 8px inside top margin
+    else baseY = stage.clientHeight - PAD + 8;              // top edge of bottom margin + 8px
+
+    let cursorX = minX;
+    list.forEach(item => {
+      item.x = Math.max(cursorX, clamp(item.preferred, minX, Math.max(minX, maxRight - item.w)));
+      cursorX = item.x + item.w + gap;
+    });
+
+    const overflow = list.length ? (list[list.length - 1].x + list[list.length - 1].w - maxRight) : 0;
+    if (overflow > 0) {
+      for (let i = list.length - 1; i >= 0; i--) {
+        const rightLimit = (i === list.length - 1) ? maxRight : list[i + 1].x - gap;
+        list[i].x = Math.min(list[i].x - overflow, rightLimit - list[i].w);
+        if (i === 0) list[i].x = Math.max(minX, list[i].x);
+      }
+    }
+
+    cursorX = minX;
+    list.forEach(item => {
+      const x = Math.max(cursorX, item.x);
+      item.ann.nx = x;
+      item.ann.ny = baseY;
+      item.note.style.left = x + 'px';
+      item.note.style.top  = baseY + 'px';
+      cursorX = x + item.w + gap;
+    });
+  });
+}
+
+function updateAnnZoneFromNote(ann, y){
+  ann.zone = (y + PAD / 2 < stage.clientHeight / 2) ? 'top' : 'bot';
+}
+
+function renderAnn(ann) {
+  const a = document.createElement('div');
+  a.className = 'anchor'; a.textContent = pad2(ann.num);
+  a.style.left = ann.ax + 'px'; a.style.top = ann.ay + 'px';
+  a.dataset.id = ann.id;
+  imgWrap.appendChild(a);
+  makeDraggable(a, ann, 'anchor');
+
+  const n = document.createElement('div');
+  n.className = 'note';
+  n.style.left = ann.nx + 'px'; n.style.top = ann.ny + 'px';
+  n.dataset.id = ann.id;
+  n.innerHTML = `
+    <div class="line1">
+      <span class="num">${pad2(ann.num)}</span><span class="title" contenteditable="true" placeholder="Title">${escapeHtml(ann.title)}</span>
+    </div>
+    <div class="desc" contenteditable="true" placeholder="Description">${escapeHtml(ann.desc)}</div>
+  `;
+  applyNoteStyle(n);
+  stage.appendChild(n);
+  makeDraggable(n, ann, 'note');
+
+  const titleEl = n.querySelector('.title');
+  const descEl  = n.querySelector('.desc');
+  titleEl.oninput = e => { ann.title = e.target.innerText; syncPanel(ann.id); autoLayout(); redrawLines(); };
+  descEl.oninput  = e => { ann.desc  = e.target.innerText; syncPanel(ann.id); autoLayout(); redrawLines(); };
+  [titleEl, descEl].forEach(el => el.addEventListener('dblclick', () => selectAllText(el)));
+}
+
+function selectAllText(el){
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const sel = window.getSelection();
+  sel.removeAllRanges(); sel.addRange(range);
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function makeDraggable(el, ann, type) {
+  let sx, sy, ox, oy, dragging = false;
+  el.addEventListener('mousedown', e => {
+    if (e.target.isContentEditable) return;
+    dragging = true;
+    sx = e.clientX; sy = e.clientY;
+    ox = parseFloat(el.style.left); oy = parseFloat(el.style.top);
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const nx = ox + e.clientX - sx;
+    const ny = oy + e.clientY - sy;
+    el.style.left = nx + 'px'; el.style.top = ny + 'px';
+    if (type === 'anchor') {
+      ann.ax = nx;
+      ann.ay = ny;
+      const iRect = img.getBoundingClientRect();
+      ann.zone = (ny < iRect.height / 2) ? 'top' : 'bot';
+    }
+    else {
+      ann.nx = nx;
+      ann.ny = ny;
+      ann.manual = true;
+      updateAnnZoneFromNote(ann, ny);
+    }
+    redrawLines();
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    autoLayout();
+    redrawLines();
+  });
+}
+
+function computePath(cx, cy, ax, ay){
+  if (lineMode === 'direct') return [[cx,cy],[ax,ay]];
+  if (lineMode === 'hv')     return [[cx,cy],[ax,cy],[ax,ay]];
+  if (lineMode === '30deg'){
+    const dx = ax - cx, dy = ay - cy;
+    const tan30 = Math.tan(Math.PI/6);
+    const diagV = Math.abs(dx) / tan30;
+    const signY = dy >= 0 ? 1 : -1;
+    if (Math.abs(dy) <= diagV) return [[cx,cy],[ax,ay]];
+    const midY = cy + signY * diagV;
+    return [[cx,cy],[ax,midY],[ax,ay]];
+  }
+  return [[cx,cy],[ax,ay]];
+}
+function pointsToStr(pts){ return pts.map(p => p[0].toFixed(1)+','+p[1].toFixed(1)).join(' '); }
+function segmentInsideRange(p1, p2, rect){
+  const dx = p2[0] - p1[0], dy = p2[1] - p1[1];
+  let t0 = 0, t1 = 1;
+  const clip = (p, q) => {
+    if (p === 0) return q >= 0;
+    const r = q / p;
+    if (p < 0) {
+      if (r > t1) return false;
+      if (r > t0) t0 = r;
+    } else {
+      if (r < t0) return false;
+      if (r < t1) t1 = r;
+    }
+    return true;
+  };
+  if (
+    clip(-dx, p1[0] - rect.left) &&
+    clip( dx, rect.right - p1[0]) &&
+    clip(-dy, p1[1] - rect.top) &&
+    clip( dy, rect.bottom - p1[1])
+  ) return [t0, t1];
+  return null;
+}
+function pointAt(p1, p2, t){
+  return [p1[0] + (p2[0] - p1[0]) * t, p1[1] + (p2[1] - p1[1]) * t];
+}
+function outsidePathParts(pts, rect){
+  const parts = [];
+  const samePoint = (a, b) => Math.abs(a[0] - b[0]) < 0.01 && Math.abs(a[1] - b[1]) < 0.01;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p1 = pts[i], p2 = pts[i + 1];
+    const inside = segmentInsideRange(p1, p2, rect);
+    const addPart = (a, b) => {
+      if (samePoint(a, b)) return;
+      const last = parts[parts.length - 1];
+      if (last && samePoint(last[last.length - 1], a)) last.push(b);
+      else parts.push([a, b]);
+    };
+    if (!inside) {
+      addPart(p1, p2);
+      continue;
+    }
+    const [t0, t1] = inside;
+    if (t0 > 0) addPart(p1, pointAt(p1, p2, t0));
+    if (t1 < 1) addPart(pointAt(p1, p2, t1), p2);
+  }
+  return parts;
+}
+function appendLinePart(points, stroke, width, opacity){
+  const poly = document.createElementNS(SVGNS, 'polyline');
+  poly.setAttribute('points', pointsToStr(points));
+  poly.setAttribute('fill','none');
+  poly.setAttribute('stroke', stroke);
+  poly.setAttribute('stroke-width', width);
+  poly.setAttribute('stroke-opacity', opacity);
+  poly.setAttribute('stroke-linejoin','round');
+  poly.setAttribute('stroke-linecap','round');
+  svg.appendChild(poly);
+}
+
+function redrawLines() {
+  resizeSvg();
+  svg.innerHTML = '';
+  annotations.forEach(ann => {
+    const note = document.querySelector(`.note[data-id="${ann.id}"]`);
+    if (!note) return;
+    const nw = note.offsetWidth, nh = note.offsetHeight;
+    const cx = ann.nx + nw / 2;
+    const cy = ann.ny + nh / 2;
+    const ax = ann.ax;
+    const ay = ann.ay + PAD;
+    const pts = computePath(cx, cy, ax, ay);
+    const clipPad = 2;
+    const rect = {
+      left: ann.nx - clipPad,
+      top: ann.ny - clipPad,
+      right: ann.nx + nw + clipPad,
+      bottom: ann.ny + nh + clipPad
+    };
+    const lineParts = outsidePathParts(pts, rect);
+
+    lineParts.forEach(part => appendLinePart(part, '#ffffff', '3.33', lineOpacity));
+    lineParts.forEach(part => appendLinePart(part, lineColor, '1.33', lineOpacity));
+
+    const dotBg = document.createElementNS(SVGNS, 'circle');
+    dotBg.setAttribute('cx', ax); dotBg.setAttribute('cy', ay);
+    dotBg.setAttribute('r', 3.17); dotBg.setAttribute('fill','#ffffff'); dotBg.setAttribute('fill-opacity', lineOpacity);
+    svg.appendChild(dotBg);
+    const dot = document.createElementNS(SVGNS, 'circle');
+    dot.setAttribute('cx', ax); dot.setAttribute('cy', ay);
+    dot.setAttribute('r', 2.5); dot.setAttribute('fill', lineColor); dot.setAttribute('fill-opacity', lineOpacity);
+    svg.appendChild(dot);
+  });
+}
+
+function renderPanel(){
+  itemList.innerHTML = '';
+  if (annotations.length === 0){
+    itemList.innerHTML = '<div class="empty">No annotations yet<br>Click on the image to add one</div>';
+    return;
+  }
+  annotations.forEach((ann, i) => {
+    const div = document.createElement('div');
+    div.className = 'item'; div.dataset.id = ann.id;
+    div.innerHTML = `
+      <div class="item-head">
+        <span class="badge">${pad2(ann.num)}</span>
+        <input type="text" class="title-in" value="${escapeHtml(ann.title)}" placeholder="Title">
+        <button class="arr up"  title="Move up" ${i===0?'disabled':''}>▲</button>
+        <button class="arr down" title="Move down" ${i===annotations.length-1?'disabled':''}>▼</button>
+        <button class="del-btn" title="Delete">×</button>
+      </div>
+      <textarea class="desc-in" placeholder="Description">${escapeHtml(ann.desc)}</textarea>
+    `;
+    itemList.appendChild(div);
+    const titleIn = div.querySelector('.title-in');
+    const descIn  = div.querySelector('.desc-in');
+    titleIn.oninput = e => { ann.title = e.target.value; syncNote(ann.id); autoLayout(); redrawLines(); };
+    descIn.oninput  = e => { ann.desc  = e.target.value; syncNote(ann.id); autoLayout(); redrawLines(); };
+    div.querySelector('.up').onclick   = () => moveItem(i, -1);
+    div.querySelector('.down').onclick = () => moveItem(i, +1);
+    div.querySelector('.del-btn').onclick = () => { annotations.splice(i,1); renderAll(); };
+    div.addEventListener('mouseenter', () => {
+      document.querySelectorAll('.note').forEach(x => x.classList.remove('selected'));
+      const note = document.querySelector(`.note[data-id="${ann.id}"]`);
+      if (note) note.classList.add('selected');
+    });
+    div.addEventListener('mouseleave', () => {
+      document.querySelectorAll('.note').forEach(x => x.classList.remove('selected'));
+    });
+  });
+}
+
+function syncNote(id){
+  const ann = annotations.find(a => a.id === id);
+  const note = document.querySelector(`.note[data-id="${id}"]`);
+  if (!ann || !note) return;
+  note.querySelector('.title').innerText = ann.title;
+  note.querySelector('.desc').innerText  = ann.desc;
+}
+function syncPanel(id){
+  const ann = annotations.find(a => a.id === id);
+  const item = itemList.querySelector(`.item[data-id="${id}"]`);
+  if (!ann || !item) return;
+  const t = item.querySelector('.title-in');
+  const d = item.querySelector('.desc-in');
+  if (document.activeElement !== t) t.value = ann.title;
+  if (document.activeElement !== d) d.value = ann.desc;
+}
+function moveItem(i, dir){
+  const j = i + dir;
+  if (j < 0 || j >= annotations.length) return;
+  [annotations[i], annotations[j]] = [annotations[j], annotations[i]];
+  renderAll();
+}
+
+document.getElementById('exportJson').onclick = () => {
+  const data = {
+    image: img.src,
+    annotations,
+    fsScale:+fsRange.value,
+    lineMode,
+    ptMode,
+    anchorOpacity:+opRange.value,
+    noteColor,
+    noteOpacity:+noteOpacityInput.value,
+    lineColor,
+    lineOpacity:+lineOpacityInput.value
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'annotations.json'; a.click();
+};
+
+document.getElementById('jsonInput').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    const data = JSON.parse(ev.target.result);
+    img.src = data.image;
+    img.onload = () => {
+      naturalW = img.naturalWidth; naturalH = img.naturalHeight;
+      annotations = data.annotations;
+      nextId = Math.max(...annotations.map(a => a.id), 0) + 1;
+      if (data.fsScale){ fsRange.value = data.fsScale; document.documentElement.style.setProperty('--fs-scale',(data.fsScale/100).toString()); fsVal.textContent=data.fsScale+'%'; }
+      if (data.lineMode){ lineMode = data.lineMode; const r2=document.querySelector(`input[name="lineMode"][value="${lineMode}"]`); if(r2)r2.checked=true; }
+      if (data.ptMode){ ptMode = data.ptMode; const r3=document.querySelector(`input[name="ptMode"][value="${ptMode}"]`); if(r3)r3.checked=true; }
+      if (data.anchorOpacity!=null){ opRange.value=data.anchorOpacity; opRange.dispatchEvent(new Event('input')); }
+      if (data.noteColor){ noteColorInput.value=data.noteColor; }
+      if (data.noteOpacity!=null){ noteOpacityInput.value=data.noteOpacity; }
+      if (data.lineColor){ lineColorInput.value=data.lineColor; }
+      if (data.lineOpacity!=null){ lineOpacityInput.value=data.lineOpacity; }
+      applyStyleControls();
+      updateDpiInfo();
+      renderAll();
+    };
+  };
+  r.readAsText(f);
+};
+
+document.getElementById('exportPng').onclick = () => {
+  if (!img.src) return alert('Please load a base image first');
+  const scale = TARGET_DPI / SCREEN_DPI;
+  document.querySelectorAll('.padZone').forEach(z => z.style.display = 'none');
+  html2canvas(stage, { useCORS: true, backgroundColor: '#ffffff', scale }).then(c => {
+    document.querySelectorAll('.padZone').forEach(z => z.style.display = '');
+    const dataUrl = c.toDataURL('image/png');
+    const withDpi = setPngDpi(dataUrl, TARGET_DPI);
+    const a = document.createElement('a');
+    a.href = withDpi;
+    a.download = 'annotated_300dpi.png'; a.click();
+  });
+};
+
+function setPngDpi(dataUrl, dpi){
+  const b64 = dataUrl.split(',')[1];
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  const ppm = Math.round(dpi / 0.0254);
+  const phys = new Uint8Array(21);
+  const dv = new DataView(phys.buffer);
+  dv.setUint32(0, 9);
+  phys[4]=0x70; phys[5]=0x48; phys[6]=0x59; phys[7]=0x73;
+  dv.setUint32(8, ppm); dv.setUint32(12, ppm); phys[16]=1;
+  dv.setUint32(17, crc32(phys.subarray(4,17)));
+  const insertPos = 8 + 25;
+  const out = new Uint8Array(bytes.length + 21);
+  out.set(bytes.subarray(0, insertPos), 0);
+  out.set(phys, insertPos);
+  out.set(bytes.subarray(insertPos), insertPos + 21);
+  let s=''; for (let i=0;i<out.length;i++) s+=String.fromCharCode(out[i]);
+  return 'data:image/png;base64,' + btoa(s);
+}
+const crcTable = (()=>{ let t=[]; for(let n=0;n<256;n++){let c=n; for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1; t[n]=c;} return t; })();
+function crc32(buf){ let c=0xFFFFFFFF; for(let i=0;i<buf.length;i++) c=crcTable[(c^buf[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+
+document.getElementById('clearAll').onclick = () => {
+  if (!confirm('Are you sure you want to clear all annotations?')) return;
+  annotations = []; renderAll();
+};
+
+window.addEventListener('resize', () => { autoLayout(); redrawLines(); });
+renderPanel();
+applyPtMode();
+applyStyleControls();
+</script>
+</body>
+</html>
