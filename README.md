@@ -1,7 +1,9 @@
 專案名稱（中文）：圖片標註工具.html
+
 用途：設備佈局互動式標註系統
 
 Project Name: MachineAnnotationTool.html
+
 Purpose: Interactive Equipment Layout Annotation System
 
 一、 操作程序 (Operating Procedures)
